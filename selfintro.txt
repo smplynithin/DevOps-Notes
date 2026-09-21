@@ -1,0 +1,7 @@
+Hi, I'm Srinithin, with three and a half years of experience in DevOps practices — skilled in managing microservices architectures and automating deployment workflows.
+
+I started my career at Xitadel CAE Technologies on the engineering side, then moved into cloud early on, where I strengthened my foundation in Linux, shell scripting, Git, CI/CD automation, and AWS services.
+
+I later joined HCLTech, where I got broader exposure to enterprise-scale EKS and modern DevOps practices — including building and maintaining secure CI/CD pipelines, managing our AWS infrastructure, and handling container orchestration and deployment through GitOps across multiple environments. Observability is handled through ELK, Prometheus, and Grafana, keeping the platform reliable and catching issues early.
+
+I've also completed my AWS Associate certification, and I'm a quick learner who adapts fast to new tools and environments. I'm now looking to take on broader ownership of cloud infrastructure and DevOps strategy.
