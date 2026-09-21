@@ -207,16 +207,31 @@ APPLICATION ISSUE
 
 ---
 
-## Level 4 — Real Interview Scenarios (practice these out loud)
+## Level 4 — Real Interview Scenarios (with answers)
 
-1. "Production DB session is stuck — walk me through it."
-2. "Application is unable to connect to Oracle — what do you check?"
-3. "Queries suddenly became slow — how do you approach it?"
-4. "One query is blocking 50 sessions — what's your action?"
-5. "DB CPU is at 100% — where do you look?"
-6. "Connection pool is exhausted — what's happening and what do you check?"
-7. "Application is getting a DB timeout — how do you isolate app vs DB vs network?"
-8. "How do you work with the DBA during an incident?"
+**1. "Production DB session is stuck — walk me through it."**
+Check app symptoms → confirm DB connectivity → query active sessions → check for blocking sessions → identify the blocking SID + SQL_ID → check how long it's held the lock and whether the transaction is committed → share evidence with the DBA → get approval before any kill → monitor recovery after action.
+
+**2. "Application is unable to connect to Oracle — what do you check?"**
+Network path (security groups/firewall, VPN, DNS) → DB listener status → max connections limit reached? → credentials/wallet expiry → connection pool exhausted on app side → DB itself up and accepting connections. Isolate whether it's network, auth, or DB-capacity before assuming DB is "down."
+
+**3. "Queries suddenly became slow — how do you approach it?"**
+Layer it: app response time → DB CPU/memory → active/waiting/blocking sessions → long-running queries → wait events → execution plan for the specific slow query (index used vs full table scan) → recent data growth or stats not updated. Don't jump straight to "add an index."
+
+**4. "One query is blocking 50 sessions — what's your action?"**
+Identify the blocking SID via `v$session.blocking_session`, pull its SQL_ID and runtime, confirm if it's an uncommitted transaction, check business impact (how critical, how long), then escalate to the DBA/app owner with that evidence rather than killing it unilaterally.
+
+**5. "DB CPU is at 100% — where do you look?"**
+Top SQL by CPU usage, number of concurrent sessions, any runaway/looping query, recent deployment or batch job running, missing indexes causing full scans, and whether it's one bad query vs genuine load increase (may need scaling, not just tuning).
+
+**6. "Connection pool is exhausted — what's happening and what do you check?"**
+App is opening more connections than the pool allows, or connections aren't being released (leak, long-held transactions, slow queries holding connections). Check pool config (max size, timeout), app logs for connection leak patterns, and whether DB-side max_connections is also a ceiling.
+
+**7. "Application is getting a DB timeout — how do you isolate app vs DB vs network?"**
+Check network latency/connectivity independently (ping/telnet to DB port), check DB-side session/wait events at that exact time, check app-side pool and thread behavior. If DB shows no load and network is clean, the issue is likely app-side config (timeout set too low, pool misconfigured).
+
+**8. "How do you work with the DBA during an incident?"**
+You gather and hand off evidence — not raw complaints. Bad: "DB is slow, please check." Good: "SID 101 has been blocking 15 sessions for 30 minutes, SQL_ID is X, here's the session/machine/program info." You investigate and narrow it down; the DBA takes the DB-internal action.
 
 ---
 
@@ -230,6 +245,19 @@ APPLICATION ISSUE
 6. Clustered vs non-clustered index — clustered physically orders table data by the key (one per table); non-clustered is a separate lookup structure pointing to rows (many allowed).
 7. JOIN types — INNER (matching rows only), LEFT (all left + matches), RIGHT (all right + matches), FULL (all rows, matched where possible).
 8. WHERE vs HAVING — WHERE filters rows before grouping, HAVING filters groups after GROUP BY.
+
+## Oracle-Specific vs Common to All RDBMS
+
+Most of this guide is **universal** — sessions, transactions, locks, blocking, deadlocks, the troubleshooting flow, indexes, execution plans, connection pooling, replication lag, PITR. Only the exact query syntax to inspect sessions/locks is Oracle-specific.
+
+| Concept | Oracle | PostgreSQL | MySQL | SQL Server |
+|---|---|---|---|---|
+| List sessions | `V$SESSION` | `pg_stat_activity` | `information_schema.processlist` / `performance_schema` | `sys.dm_exec_sessions` |
+| Session identifier | SID + SERIAL# | `pid` | `id` (connection id) | `session_id` |
+| Running SQL text | `V$SQL` | `pg_stat_activity.query` | `performance_schema.events_statements_current` | `sys.dm_exec_sql_text` |
+| Kill a session | `ALTER SYSTEM KILL SESSION 'sid,serial#'` | `pg_terminate_backend(pid)` | `KILL <id>` | `KILL <session_id>` |
+
+Before an interview, always confirm which DB engine the company actually runs (RDS Postgres, Aurora MySQL, on-prem Oracle, etc.) and be ready to swap the syntax — the concept answer (blocking, deadlock, troubleshooting flow) stays the same regardless.
 
 ## DevOps-Specific Add-ons
 
