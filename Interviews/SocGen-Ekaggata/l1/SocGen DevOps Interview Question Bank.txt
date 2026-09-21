@@ -1,0 +1,240 @@
+Interview Question Bank — Specialist Software Engineer, DevOps (Société Générale)
+A revision set covering every tool in the JD plus questions likely to come from your CV/projects. Sections 1-7 are the JD's primary skillset (Git, Bash, Jenkins/GitHub Actions, Python, Helm, ELK, DevOps Culture) — these now include answers, since they're the areas most likely to get probed deeper. Sections 8-13 (secondary skills, projects, behavioral) stay question-only — use them to check you can talk fluently, not memorize.
+
+1. Git
+Q1. Walk me through your day-to-day Git workflow. A: Feature branch off main/develop, small focused commits, push and open a PR, get it reviewed, squash-merge once approved, delete the branch. For hotfixes, branch off the production tag and fast-track review.
+
+Q2. Difference between git merge and git rebase? A: merge creates a new commit joining two histories and preserves the exact history including merge commits. rebase replays your branch's commits on top of another branch, producing a linear history. Use merge for shared/public branches (safe), rebase for cleaning up your own local branch before opening a PR.
+
+Q3. What does git squash do and why use it? A: It combines multiple commits into one (usually via interactive rebase, git rebase -i). Useful to turn a messy "WIP, fix typo, fix again" history into one clean commit before merging, so main's history stays readable.
+
+Q4. PR vs MR — is there a real difference? A: No functional difference — PR (Pull Request) is GitHub/Bitbucket terminology, MR (Merge Request) is GitLab terminology. Same concept: propose a branch's changes for review before merging.
+
+Q5. How do you resolve a merge conflict? A: Git marks conflicting sections with <<<<<<<, =======, >>>>>>> markers in the file. You manually edit to keep the correct code, remove the markers, git add the resolved file, then continue the merge/rebase (git rebase --continue or commit the merge).
+
+Q6. What's git cherry-pick used for? A: Applying a specific commit from one branch onto another without merging the whole branch — e.g., picking a critical bugfix commit from main into a release branch.
+
+Q7. How do you undo a commit that's already been pushed? A: If it's safe to rewrite history (no one else pulled it), git reset --hard HEAD~1 then force-push. If others may have pulled it, use git revert <commit> instead — it creates a new commit that undoes the changes without rewriting history.
+
+Q8. What's the difference between git fetch and git pull? A: fetch downloads remote changes but doesn't merge them into your branch. pull = fetch + merge (or rebase with --rebase) in one step.
+
+Q9. How would you find which commit introduced a bug? A: git bisect — it does a binary search across commits between a known-good and known-bad commit, and you mark each tested commit good/bad until it isolates the culprit.
+
+2. Bash / Shell Scripting
+Q1. Write a script that deletes .log files older than 7 days. A:
+
+find /var/log/myapp -name "*.log" -mtime +7 -exec rm {} \;
+Q2. How would you count "ERROR" occurrences per hour in a log file? A:
+
+grep "ERROR" app.log | awk '{print $1, $2}' | cut -c1-13 | sort | uniq -c
+(Assumes a timestamp at the start of each line — extract hour precision, then count.)
+
+Q3. Difference between $@ and $*? A: Both represent all positional arguments. Unquoted they behave the same. Quoted, "$@" expands to separate quoted words (each argument preserved individually), while "$*" expands to a single string with all arguments joined by the first character of IFS. Always prefer "$@" when looping over arguments.
+
+Q4. How do you handle errors in a Bash script? A: Use set -e (exit on first error), set -u (error on unset variables), set -o pipefail (catch failures in piped commands). Use trap 'cleanup' EXIT to run cleanup code on exit, and check $? after critical commands when you need custom handling instead of just exiting.
+
+Q5. One-liner to find the top 5 largest files in a directory tree. A:
+
+find . -type f -exec du -h {} \; | sort -rh | head -5
+Q6. Write a simple health-check script that curls an endpoint and alerts on failure. A:
+
+#!/bin/bash
+URL="https://myservice.internal/health"
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL")
+if [ "$STATUS" -ne 200 ]; then
+  echo "Health check failed: $STATUS" | mail -s "ALERT: Service Down" ops@team.com
+fi
+Q7. Difference between a subshell and the current shell? A: A subshell (created by ( ), or running a script normally) inherits the environment but any variable changes inside it don't affect the parent shell. Using source script.sh or . script.sh runs it in the current shell, so variable/directory changes do persist.
+
+Q8. How do you pass and read arguments in a Bash script? A: Arguments are available as $1, $2, etc., $0 is the script name, $# is the argument count, "$@" is all arguments. Example: ./deploy.sh prod v1.2 → $1=prod, $2=v1.2.
+
+3. Python
+Basic-level Python scripting (fundamentals — expect these to be asked directly)
+Q1. How do you read a file line by line in Python? A:
+
+with open("app.log") as f:
+    for line in f:
+        print(line.strip())
+Using with ensures the file is closed automatically even if an error occurs.
+
+Q2. Difference between a list and a tuple? A: A list [1, 2, 3] is mutable (can be changed after creation). A tuple (1, 2, 3) is immutable (cannot be changed). Tuples are slightly faster and used when data shouldn't change (e.g., coordinates, fixed config).
+
+Q3. Difference between is and ==? A: == checks if two values are equal. is checks if two variables point to the exact same object in memory. a == b compares content; a is b compares identity.
+
+Q4. How do you handle exceptions in Python? A:
+
+try:
+    result = 10 / 0
+except ZeroDivisionError as e:
+    print(f"Error: {e}")
+finally:
+    print("Always runs, e.g. closing a connection")
+Q5. What's a list comprehension? Give an example. A: A concise way to build a list. Example — get only even numbers from a list:
+
+evens = [x for x in range(20) if x % 2 == 0]
+Equivalent to a for-loop with .append(), but more compact.
+
+Q6. How do you work with dictionaries — get a value with a default if the key doesn't exist? A:
+
+config = {"env": "prod"}
+region = config.get("region", "ap-south-1")  # returns default if key missing
+Q7. How do you call a REST API and check the response in Python? A:
+
+import requests
+
+response = requests.get("https://api.example.com/health")
+if response.status_code == 200:
+    print("Service healthy:", response.json())
+else:
+    print(f"Service issue: {response.status_code}")
+Q8. How do you parse command-line arguments in a Python script? A:
+
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--env", required=True, help="Deployment environment")
+args = parser.parse_args()
+print(f"Deploying to {args.env}")
+Q9. What's the difference between *args and **kwargs? A: *args collects extra positional arguments into a tuple. **kwargs collects extra keyword arguments into a dictionary. Example: def f(*args, **kwargs): print(args, kwargs) called as f(1, 2, name="x") prints (1, 2) {'name': 'x'}.
+
+Q10. How do you write to a file in Python? A:
+
+with open("output.txt", "w") as f:
+    f.write("Deployment completed\n")
+Use "a" instead of "w" to append rather than overwrite.
+
+Slightly deeper / automation-flavored Python
+Q11. Write a script that reads a CSV of server names and pings each one, logging results. A:
+
+import csv, subprocess
+
+with open("servers.csv") as f, open("ping_results.log", "w") as log:
+    reader = csv.reader(f)
+    for row in reader:
+        host = row[0]
+        result = subprocess.run(["ping", "-c", "1", host], capture_output=True)
+        status = "UP" if result.returncode == 0 else "DOWN"
+        log.write(f"{host}: {status}\n")
+Q12. How would you structure a Python automation script for production use (logging, config)? A: Separate config (env vars or a .yaml/.ini file) from logic, use the logging module instead of print() for timestamped, leveled output, wrap the main logic in try/except with meaningful error messages, and use if __name__ == "__main__": as the entry point.
+
+Q13. How do you manage dependencies in a Python project? A: A virtual environment (python -m venv venv) isolates project dependencies from the system Python. Dependencies are listed in requirements.txt and installed via pip install -r requirements.txt.
+
+Q14. If they ask "Ruby or Python" — how do you answer? A: Answer confidently and directly: "I primarily work in Python — I use it for automation scripts, log parsing, and API interactions in my current role," then pivot into one concrete example (e.g., a health-check or log-parsing script) rather than apologizing for not knowing Ruby.
+
+4. Jenkins / GitHub Actions (CI/CD)
+Q1. Walk me through an end-to-end pipeline you've built. A: Commit triggers webhook → checkout code → run unit tests → build Docker image → security scan (Trivy) → push image to registry (ECR) → Helm upgrade deploys to the target environment via ArgoCD sync → post-deploy smoke test → notify Slack/Teams on success/failure.
+
+Q2. Declarative vs scripted Jenkins pipeline? A: Declarative uses a structured pipeline { stages { ... } } syntax — easier to read, has built-in error handling and syntax checking. Scripted uses raw Groovy in a node { } block — more flexible but harder to maintain. Most teams default to declarative unless they need Groovy's full flexibility.
+
+Q3. How do you make one GitHub Actions job run only after another succeeds? A: Use needs: in the job definition:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps: [...]
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps: [...]
+deploy only runs if build completes successfully.
+
+Q4. How do you trigger a workflow only on push to a PR, not every push to main? A:
+
+on:
+  pull_request:
+    branches: [main]
+This scopes the trigger to PR events targeting main, instead of on: push which fires on every commit push.
+
+Q5. How do you handle secrets securely in a pipeline? A: Store them in Jenkins Credentials Store or GitHub Actions Secrets (${{ secrets.MY_SECRET }}) — never hardcode in the pipeline file. For Kubernetes deployments, pull from AWS Secrets Manager or use Sealed Secrets so encrypted values are safe to store in Git.
+
+Q6. How do you roll back a failed deployment from a pipeline? A: With ArgoCD/Helm: helm rollback <release> <revision> or argocd app rollback <app>. Ideally the pipeline itself has an automated rollback stage triggered by a failed smoke test.
+
+Q7. How would you speed up a slow pipeline? A: Cache dependencies (actions/cache or Jenkins caching plugins), run independent stages in parallel, use a matrix build for multi-environment testing, and only rebuild what changed instead of the whole pipeline.
+
+5. Helm
+Q1. What problem does Helm solve over plain manifests? A: Helm templates and parameterizes Kubernetes YAML so you can reuse one chart across environments (dev/staging/prod) by swapping values.yaml, instead of maintaining separate copies of raw manifests. It also gives you release versioning, rollback, and dependency management.
+
+Q2. How do you manage different values per environment? A: One base chart with values.yaml for defaults, then environment-specific override files like values-prod.yaml, values-staging.yaml, applied with helm upgrade -f values-prod.yaml.
+
+Q3. How do you debug a failed Helm release? A: helm status <release> and helm history <release> to see revisions, helm get manifest <release> to see what was actually applied, kubectl describe/logs on the resulting pods, and helm rollback <release> <revision> to revert if needed.
+
+Q4. What's a Helm chart dependency / subchart? A: A chart can declare dependencies on other charts in Chart.yaml (e.g., a Redis or Postgres subchart), pulled in via helm dependency update. This lets you compose a full application stack from reusable charts.
+
+Q5. How do you manage secrets in Helm charts? A: Avoid plain secrets in values.yaml. Use helm-secrets (encrypts values with SOPS/GPG), or better, reference External Secrets/AWS Secrets Manager/Sealed Secrets from the templates instead of storing secret values in the chart at all.
+
+Q6. Difference between helm upgrade --install and separate install/upgrade? A: helm upgrade --install is idempotent — it installs the release if it doesn't exist, or upgrades it if it does. This is what you want in CI/CD pipelines so the same command works on first deploy and every subsequent deploy.
+
+6. ELK Stack (Logging & Monitoring)
+Q1. Explain the role of each ELK component. A: Elasticsearch stores and indexes log data for fast search. Logstash (or Filebeat) ingests, parses, and transforms raw logs before sending them to Elasticsearch. Kibana is the visualization/dashboard layer on top of Elasticsearch.
+
+Q2. How would you design a Logstash pipeline for application logs? A: An input block (e.g., reading from a file or Beats), a filter block using grok to parse unstructured log lines into structured fields (timestamp, log level, service name, message), and an output block sending the parsed data to Elasticsearch.
+
+Q3. How do you build a Kibana dashboard to track error rates? A: Create an index pattern in Kibana matching your log index, build a visualization (e.g., a line chart) aggregating count of documents where log_level: ERROR over time, then add it to a dashboard alongside related panels (response time, request volume).
+
+Q4. How does ELK compare to Prometheus/Grafana/CloudWatch, which you've used more? A: Prometheus/Grafana are built for metrics (numeric time-series — CPU, memory, request latency) pulled at intervals. ELK is built for logs (unstructured/semi-structured text events), searched and aggregated after ingestion. They're complementary — metrics tell you something is wrong, logs tell you why. CloudWatch Logs is AWS's closer equivalent to the ELK use case.
+
+Q5. How would you do root cause analysis using centralized logs? A: Narrow the time window to the incident, filter by service name and error level, look for the first error or exception in the sequence (not just the last one, which is often a symptom), then correlate with a metrics dashboard for the same window to confirm resource/dependency issues.
+
+Q6. How do you manage log retention in Elasticsearch? A: Using Index Lifecycle Management (ILM) policies — define hot/warm/cold/delete phases so recent logs stay on fast storage and older logs roll off or get deleted automatically after a retention period.
+
+7. DevOps Culture
+Q1. What does "DevOps culture" mean to you beyond the tools? A: Shared ownership between dev and ops for what's shipped — the team that builds it also supports it in production. It's about fast feedback loops, automating repetitive work, and treating infrastructure as code so environments are consistent and reproducible.
+
+Q2. How do you handle disagreement with a developer about a deployment process? A: Focus on the shared goal (reliable, fast releases) rather than the personal disagreement. Bring data — e.g., past incident history or pipeline failure rates — to make the trade-off concrete rather than opinion-based, and propose a small trial rather than a big process change upfront.
+
+Q3. Describe a time you improved a process to reduce manual work or errors. A: (Use a real example — e.g., automating a manual deployment step, or introducing a pre-deploy validation check that catches a class of errors before they hit production.)
+
+Q4. How do you balance speed of delivery with system stability? A: Automated testing and staged rollouts (canary/blue-green) let you move fast without betting the whole system on one deploy — catch issues in a small blast radius before they reach all users.
+
+Q5. How do you approach a blameless postmortem after an incident? A: Focus on the sequence of events and systemic gaps (monitoring, alerting, process) rather than who made the mistake — the goal is fixing the conditions that allowed the incident, not assigning fault, since that's what actually prevents recurrence.
+
+8. Ansible (secondary skill)
+What's Ansible used for, and how does it differ from Terraform (config management vs provisioning)?
+Explain a playbook's structure — roles, tasks, inventory.
+How would you use Ansible to configure a fleet of servers consistently?
+Why does idempotency matter in Ansible playbooks?
+9. Docker & Kubernetes (secondary skill per this JD, but your strongest area — expect real depth here regardless)
+Walk through your ArgoCD setup — app-of-apps pattern, sync policies, auto-sync vs manual.
+Describe a pod crash-loop you diagnosed — steps with kubectl and logs.
+HPA vs VPA — when would you use each?
+How do Network Policies work — give a real case where you used one.
+Explain RBAC — how have you scoped permissions for a team or service account?
+Deployment vs StatefulSet vs DaemonSet — when to use each.
+How do you handle secrets in Kubernetes?
+Multi-stage Docker builds — why, and an example from your work.
+How would you troubleshoot a service that's up but not receiving traffic?
+10. Java (secondary skill)
+Basic OOP concepts — encapsulation, inheritance, polymorphism.
+What's different about deploying/monitoring a JVM-based service vs others?
+.jar vs .war — how does that affect deployment?
+11. Databases / PostgreSQL / SQL (secondary skill)
+INNER JOIN vs LEFT JOIN vs RIGHT JOIN.
+What's an index, and how does it affect query performance?
+What's ACID, and why does it matter for a production database?
+Have you managed/monitored an RDS/Postgres instance? What do you watch?
+Normalization briefly — 1NF/2NF/3NF.
+12. CV / Project-Based Questions
+Walk me through the architecture of the platform you work on — client, scale, environments.
+What's your specific role and day-to-day ownership?
+Describe your ArgoCD/GitOps setup end-to-end — commit to production.
+Tell me about a production incident you handled — root cause, fix, prevention.
+How do you manage multi-environment deployments — what changes between them?
+Walk through your monitoring/observability setup — Prometheus/Grafana, alerting.
+Describe your IaC setup (Terraform/CloudFormation) — state management, modules, drift.
+Which AWS services are core to the platform, and why?
+Pick one AWS architecture decision you made and explain the trade-offs (tie to your Solutions Architect cert).
+How do you manage secrets across pipeline and cluster?
+Describe your backup/DR approach (Velero) — have you restored from a backup for real?
+Most complex Kubernetes issue you've debugged, and what tools you used.
+How is your CI/CD pipeline structured — build, test, security scan, deploy?
+What would you improve about the current platform's DevOps setup?
+Why are you looking to move on from your current role?
+13. Behavioral / Managerial / HR Round
+Why Société Générale? Why this role specifically?
+Tell me about a time you disagreed with a team member on a technical decision.
+Describe a high-pressure production issue and how you communicated with stakeholders.
+How do you prioritize when multiple production issues come in at once?
+What's your notice period, and when could you realistically join?
+Where do you see yourself in 2-3 years?
+Questions to ask them: tooling maturity, team structure, on-call expectations, release cadence.
+How to use this: Drill sections 1-7 hardest since they're the JD's stated primary skillset — read each answer once, then close the file and answer out loud from memory. Sections 8-11 just need confident fundamentals. Section 12 needs to come from you, not memorized — practice saying it in your own words.
